@@ -27,7 +27,7 @@ export default defineConfig(({
       },
       historyApiFallback: true, // 對於 React Router，開啟這個選項以處理瀏覽器直接訪問子路由
     },
-    base: isProd ? 'https://whlshy.github.io/SendImg/' : '/', // 公共路徑
+    base: isProd ? '/SendImg/' : '/', // 公共路徑
     plugins: [
       react(), // 使用 React 插件
     ],
@@ -65,5 +65,14 @@ export default defineConfig(({
         },
       },
     },
+    // 自動複製 index.html 為 404.html
+    buildEnd() {
+      if (isProd) {
+        const indexPath = resolve(__dirname, 'dist/index.html')
+        const notFoundPath = resolve(__dirname, 'dist/404.html')
+        fs.copyFileSync(indexPath, notFoundPath)
+        console.log('✅ Copied index.html → 404.html')
+      }
+    }
   }
 });

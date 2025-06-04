@@ -9,6 +9,8 @@ import { BrowserRouter } from "react-router-dom"
 import useSnackbarStore from "./store/snackbar"
 import useApiDataStore from "./store/apidata"
 
+const isProd = import.meta.env.MODE === 'production'
+
 const Index = () => {
   const { setSnackMsg } = useSnackbarStore(state => state)
   const { setApiData } = useApiDataStore()
@@ -76,7 +78,7 @@ const Index = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter basename={process.env.PUBLIC_URL}>
+      <BrowserRouter basename={isProd ? '/SendImg/' : '/'}>
         <App />
       </BrowserRouter>
       {/* <ReactQueryDevtools initialIsOpen={false} /> */}
