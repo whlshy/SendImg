@@ -7,6 +7,8 @@ import { useAtom } from 'jotai';
 
 import { connOpenAtom } from '../elements/Peer'
 
+const isProd = import.meta.env.MODE === 'production'
+
 function CreateRoom() {
   const [searchParams, setSearchParams] = useSearchParams();
   const roomId = searchParams.get("roomId")
@@ -22,7 +24,7 @@ function CreateRoom() {
 
     // 產生完整加入連結 (假設部署在同一個 origin)
     const origin = window.location.origin;
-    setJoinLink(`${origin}/join/${id}`);
+    setJoinLink(`${origin}${isProd ? '/SendImg' : ""}/join/${id}`);
   }, []);
 
   useEffect(() => {

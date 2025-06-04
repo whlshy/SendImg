@@ -19,7 +19,10 @@ import ErrorIcon from '@mui/icons-material/Error'; // 錯誤圖示
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty'; // 等待/傳送中圖示
 import CloudUploadIcon from '@mui/icons-material/CloudUpload'; // 上傳圖示
 import DeleteIcon from '@mui/icons-material/Delete';
+import DownloadForOfflineIcon from '@mui/icons-material/DownloadForOffline'; // 新增 "下載全部" 圖示
 import Tooltip from '@mui/material/Tooltip'; // 提示工具
+
+import { useSnackbarStore } from '@/store';
 
 // 檔案狀態類型
 const FILE_STATUS = {
@@ -52,6 +55,8 @@ function PeerIndex({ roomId, isHost }) {
 
   // 暫存 Joiner 端收到的批次檔案元數據
   const incomingFileBatchMetaRef = useRef({}); // key: fileId (host generated), value: metadata from host
+
+  const { setSnackMsg } = useSnackbarStore();
 
   // Step 1: 建立 PeerJS 物件 (Unchanged)
   useEffect(() => {
@@ -240,6 +245,29 @@ function PeerIndex({ roomId, isHost }) {
     }
   };
 
+  // Joiner: 新增 - 下載所有未下載檔案的邏輯
+  const handleDownloadAllUndownloaded = async () => {
+    const filesToDownloadAll = receivedFiles.filter(f => f.status === FILE_STATUS.RECEIVED && f.blobUrl);
+    if (filesToDownloadAll.length === 0) {
+      setSnackMsg({ message: '沒有可下載的新檔案。' });
+      return;
+    }
+
+    for (let i = 0; i < filesToDownloadAll.length; i++) {
+      const file = filesToDownloadAll[i];
+      console.log(`Auto-downloading ${i + 1}/${filesToDownloadAll.length}: ${file.name}`);
+      handleDownloadFile(file.id);
+      // 在每次下載之間加入短暫延遲，避免同時觸發過多下載
+      if (i < filesToDownloadAll.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 500)); // 延遲 0.5 秒
+      }
+    }
+    setSnackMsg({ message: `${filesToDownloadAll.length} 個檔案已開始下載。` });
+  };
+
+  // Joiner: 計算是否有可供「下載全部」的檔案
+  const hasUndownloadedFiles = receivedFiles.some(f => f.status === FILE_STATUS.RECEIVED && f.blobUrl);
+
   const handleDeleteFile = (id) => {
     const filelist = filesToProcess.filter(file => file.id !== id)
     setFilesToProcess(filelist)
@@ -330,7 +358,24 @@ function PeerIndex({ roomId, isHost }) {
             {/* Joiner UI */}
             {!isHost && (
               <div className="mt-6 border-t pt-4">
-                <Typography variant="h6" gutterBottom>接收到的檔案</Typography>
+                <div className="flex justify-between items-center mb-2">
+                  <Typography variant="h6" gutterBottom component="div"> {/* component="div" for flex alignment */}
+                    接收到的檔案
+                  </Typography>
+                  {/* 新增的 "下載全部" 按鈕 */}
+                  {receivedFiles.length > 0 && (
+                    <Button
+                      variant="contained"
+                      size="small"
+                      startIcon={<DownloadForOfflineIcon />}
+                      onClick={handleDownloadAllUndownloaded}
+                      disabled={!hasUndownloadedFiles || !connOpen}
+                      className="bg-teal-500 hover:bg-teal-700 disabled:bg-gray-300"
+                    >
+                      下載全部未下載
+                    </Button>
+                  )}
+                </div>
                 {receivedFiles.length === 0 && connOpen && (
                   <Typography variant="body2" color="textSecondary">等待接收檔案中...</Typography>
                 )}
