@@ -44,6 +44,7 @@ export default defineConfig({
   },
   assetsInclude: ['**/*.svg', '**/*.png', '**/*.mp4'], // 包括圖像資產
   build: {
+    outDir: 'docs',
     chunkSizeWarningLimit: 1500,
     rollupOptions: {
       output: {

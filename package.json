@@ -5,6 +5,7 @@
   "main": "index.jsx",
   "private": true,
   "type": "module",
+  "homepage": "https://whlshy.github.io/SendImg",
   "scripts": {
     "start": "vite",
     "build": "vite build"

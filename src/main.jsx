@@ -76,7 +76,7 @@ const Index = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <BrowserRouter basename={process.env.PUBLIC_URL}>
         <App />
       </BrowserRouter>
       {/* <ReactQueryDevtools initialIsOpen={false} /> */}

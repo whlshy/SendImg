@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import Peer from 'peerjs';
 import { v4 as uuidv4 } from 'uuid'; // 用於產生唯一 ID
 import { atom, useAtom } from 'jotai'
+import { Routes, Route } from 'react-router-dom';
 
 // MUI元件
 import Button from '@mui/material/Button';
@@ -112,12 +113,6 @@ function PeerIndex({ roomId, isHost }) {
             console.log('Joiner: Received file metadata', data);
             incomingFileBatchMetaRef.current[data.fileId] = data; // 暫存元數據
           } else if (data instanceof Blob || data instanceof ArrayBuffer || data instanceof Uint8Array) {
-            // 假設 Host 傳送的檔案 ID 是透過某种方式关联 (例如，Host 在送出 Blob 前，確保對應的 fileId 已被 Joiner 知曉)
-            // 這裡我們需要一個機制來關聯 Blob 和它的元數據。
-            // 一個簡單的方式是 Host 送完 metadata 後，緊接著送 blob，並假設順序性。
-            // 或者，Host 可以在 Blob 中夾帶 fileId，但 PeerJS 直接發送 Blob 時無法這樣做。
-            // 目前的設計是依賴 `incomingFileBatchMetaRef` 和 Host 發送順序
-
             // 尋找最近一個沒有對應 Blob 的 metadata (簡易策略)
             // 更好的策略是 Host 在送 Blob 前，先送一個 {type: 'blob-coming', fileId: '...'}
             let associatedMeta = null;
@@ -127,16 +122,6 @@ function PeerIndex({ roomId, isHost }) {
             );
 
             if (pendingMetaFileIds.length > 0) {
-              // 假設是最後一個 metadata 對應這個 blob (或更複雜的配對邏輯)
-              // 為了簡化，我們假設 Host 會確保 metadata 和 blob 的某種對應關係
-              // 這裡我們需要一個更可靠的方式來配對 Blob 和 Metadata。
-              // 由於 Host 端在傳送檔案前會先傳 fileId，Joiner 收到 metadata 後，再收到 Blob，可嘗試配對。
-              // 這裡假設 metadata 中的 fileId 是唯一且 host 在發送 Blob 之前，Joiner 已經收到對應的 metadata
-              // 實際上，可能需要 Host 發送 Blob 時也帶上 fileId (例如包裝成 {type:'file-chunk', id: '...', payload: Blob})
-              // 但 PeerJS send(Blob) 不支援這樣，除非自己處理序列化。
-
-              // 為了演示，我們假設最後一個未配對的 metadata 是正確的。
-              // 這在多檔案並行處理時會有問題，但單線程傳送時可能OK。
               const lastPendingMetaId = pendingMetaFileIds[pendingMetaFileIds.length - 1]; // 不夠穩健
               if (lastPendingMetaId && incomingFileBatchMetaRef.current[lastPendingMetaId]) {
                 associatedMeta = incomingFileBatchMetaRef.current[lastPendingMetaId];
@@ -288,97 +273,104 @@ function PeerIndex({ roomId, isHost }) {
       {isHost && <p>Hosting on Room ID: {roomId}</p>}
       {!isHost && <p>Attempting to join Room ID: {roomId}</p>} */}
       {/* Add UI for sending/receiving files here */}
-      {(isHost && !!connOpen || !isHost) &&
-        <Paper elevation={3} className="p-4 md:p-6 max-w-2xl mx-auto my-4">
-          <Typography variant="h5" component="h2" gutterBottom className="text-center text-indigo-600">
-            WHL's 檔案傳輸 ({isHost ? 'Host' : 'Joiner'})
-          </Typography>
-          <div className="mb-4 space-y-2">
-            <Typography>Peer ID: <span className="font-mono bg-gray-100 p-1 rounded">{peerInstance?.id || '...'}</span></Typography>
-            {isHost && <Typography>房號: <span className="font-mono bg-gray-100 p-1 rounded">{roomId}</span></Typography>}
-            <Typography>
-              連線狀態:
-              <span className={`ml-2 px-2 py-1 text-xs rounded-full text-white ${connOpen ? 'bg-green-500' : 'bg-red-500'}`}>
-                {connOpen ? '已連線' : '未連線'}
-              </span>
+      <Routes>
+        <Route path="/transfer" element={
+          <Paper elevation={3} className="p-4 md:p-6 max-w-2xl mx-auto my-4">
+            <Typography variant="h5" component="h2" gutterBottom className="text-center text-indigo-600">
+              WHL's 檔案傳輸 ({isHost ? 'Host' : 'Joiner'})
             </Typography>
-          </div>
+            <div className="mb-4 space-y-2">
+              <Typography>Peer ID: <span className="font-mono bg-gray-100 p-1 rounded">{peerInstance?.id || '...'}</span></Typography>
+              {isHost && <Typography>房號: <span className="font-mono bg-gray-100 p-1 rounded">{roomId}</span></Typography>}
+              <Typography>
+                連線狀態:
+                <span className={`ml-2 px-2 py-1 text-xs rounded-full text-white ${connOpen ? 'bg-green-500' : 'bg-red-500'}`}>
+                  {connOpen ? '已連線' : '未連線'}
+                </span>
+              </Typography>
+            </div>
 
-          {/* Host UI */}
-          {isHost && (
-            <div className="mt-6 border-t pt-4">
-              <Typography variant="h6" gutterBottom>傳送檔案</Typography>
-              <div className="mb-4">
-                <Button variant="outlined" component="label" disabled={!connOpen}>
-                  選擇檔案
-                  <input type="file" hidden multiple onChange={handleFileSelect} />
-                </Button>
-                <Button
-                  variant="contained"
-                  color="primary"
-                  onClick={handleSendSelectedFiles}
-                  disabled={!connOpen || !filesToProcess.some(f => f.status === FILE_STATUS.SELECTED)}
-                  className="ml-2"
-                >
-                  傳送已選擇的
-                </Button>
+            {/* Host UI */}
+            {isHost && (
+              <div className="mt-6 border-t pt-4">
+                <Typography variant="h6" gutterBottom>傳送檔案</Typography>
+                <div className="mb-4">
+                  <Button variant="outlined" component="label" disabled={!connOpen}>
+                    選擇檔案
+                    <input type="file" hidden multiple onChange={handleFileSelect} />
+                  </Button>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={handleSendSelectedFiles}
+                    disabled={!connOpen || !filesToProcess.some(f => f.status === FILE_STATUS.SELECTED)}
+                    sx={{ ml: 2 }}
+                    className="ml-2"
+                  >
+                    傳送已選擇的
+                  </Button>
+                </div>
+                {filesToProcess.length > 0 && (
+                  <List dense>
+                    {filesToProcess.map((file) => (
+                      <ListItem key={file.id} divider className="hover:bg-gray-50">
+                        <img src={file.previewUrl} alt={file.name} className="w-12 h-12 object-cover mr-3 rounded" />
+                        <ListItemText
+                          primary={<span className="font-medium">{file.name}</span>}
+                          secondary={`${(file.size / 1024).toFixed(1)} KB - 狀態: ${file.status}`}
+                        />
+                        <div className="ml-auto">{renderFileStatusIcon(file.status, file.id)}</div>
+                      </ListItem>
+                    ))}
+                  </List>
+                )}
               </div>
-              {filesToProcess.length > 0 && (
-                <List dense>
-                  {filesToProcess.map((file) => (
-                    <ListItem key={file.id} divider className="hover:bg-gray-50">
-                      <img src={file.previewUrl} alt={file.name} className="w-12 h-12 object-cover mr-3 rounded" />
-                      <ListItemText
-                        primary={<span className="font-medium">{file.name}</span>}
-                        secondary={`${(file.size / 1024).toFixed(1)} KB - 狀態: ${file.status}`}
-                      />
-                      <div className="ml-auto">{renderFileStatusIcon(file.status, file.id)}</div>
-                    </ListItem>
-                  ))}
-                </List>
-              )}
-            </div>
-          )}
+            )}
 
-          {/* Joiner UI */}
-          {!isHost && (
-            <div className="mt-6 border-t pt-4">
-              <Typography variant="h6" gutterBottom>接收到的檔案</Typography>
-              {receivedFiles.length === 0 && connOpen && (
-                <Typography variant="body2" color="textSecondary">等待接收檔案中...</Typography>
-              )}
-              {receivedFiles.length === 0 && !connOpen && (
-                <Typography variant="body2" color="textSecondary">請先連線至 Host。</Typography>
-              )}
-              {receivedFiles.length > 0 && (
-                <List dense>
-                  {receivedFiles.map((file) => (
-                    <ListItem key={file.id} divider className="hover:bg-gray-50">
-                      <img src={file.blobUrl} alt={file.name} className="w-12 h-12 object-cover mr-3 rounded" />
-                      <ListItemText
-                        primary={<span className="font-medium">{file.name}</span>}
-                        secondary={`${(file.size / 1024).toFixed(1)} KB`}
-                      />
-                      <Tooltip title="下載檔案">
-                        <IconButton
-                          color="primary"
-                          onClick={() => handleDownloadFile(file.id)}
-                          disabled={file.status === FILE_STATUS.DOWNLOADED}
-                        >
-                          <CloudDownloadIcon />
-                        </IconButton>
-                      </Tooltip>
-                      {file.status === FILE_STATUS.DOWNLOADED && (
-                        <Tooltip title="已下載"><CheckCircleIcon color="success" className="ml-2" /></Tooltip>
-                      )}
-                    </ListItem>
-                  ))}
-                </List>
-              )}
-            </div>
-          )}
-        </Paper>
-      }
+            {/* Joiner UI */}
+            {!isHost && (
+              <div className="mt-6 border-t pt-4">
+                <Typography variant="h6" gutterBottom>接收到的檔案</Typography>
+                {receivedFiles.length === 0 && connOpen && (
+                  <Typography variant="body2" color="textSecondary">等待接收檔案中...</Typography>
+                )}
+                {receivedFiles.length === 0 && !connOpen && (
+                  <Typography variant="body2" color="textSecondary">請先連線至 Host。</Typography>
+                )}
+                {receivedFiles.length > 0 && (
+                  <List dense>
+                    {receivedFiles.map((file) => (
+                      <ListItem key={file.id} divider className="hover:bg-gray-50">
+                        <img src={file.blobUrl} alt={file.name} className="w-12 h-12 object-cover mr-3 rounded" />
+                        <ListItemText
+                          primary={<span className="font-medium">{file.name}</span>}
+                          secondary={`${(file.size / 1024).toFixed(1)} KB`}
+                        />
+                        <Tooltip title="下載檔案">
+                          <IconButton
+                            color="primary"
+                            onClick={() => handleDownloadFile(file.id)}
+                            disabled={file.status === FILE_STATUS.DOWNLOADED}
+                          >
+                            <CloudDownloadIcon />
+                          </IconButton>
+                        </Tooltip>
+                        {file.status === FILE_STATUS.DOWNLOADED && (
+                          <Tooltip title="已下載"><CheckCircleIcon color="success" className="ml-2" /></Tooltip>
+                        )}
+                      </ListItem>
+                    ))}
+                  </List>
+                )}
+              </div>
+            )}
+          </Paper>
+        } />
+      </Routes>
+
+      {/* {(isHost && !!connOpen || !isHost) &&
+        
+      } */}
     </div>
   );
 }
