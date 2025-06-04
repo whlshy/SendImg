@@ -1,5 +1,5 @@
 import {
-  defineConfig
+  defineConfig,
 } from 'vite';
 import react from "@vitejs/plugin-react-swc";
 import path from 'path';
@@ -30,6 +30,7 @@ export default defineConfig(({
     base: isProd ? '/SendImg/' : '/', // 公共路徑
     plugins: [
       react(), // 使用 React 插件
+      create404Plugin()
     ],
     resolve: {
       alias: {
@@ -65,14 +66,23 @@ export default defineConfig(({
         },
       },
     },
-    // 自動複製 index.html 為 404.html
-    buildEnd() {
-      if (isProd) {
-        const indexPath = resolve(__dirname, 'dist/index.html')
-        const notFoundPath = resolve(__dirname, 'dist/404.html')
+  }
+});
+
+// 自動複製 index.html 為 404.html
+function create404Plugin() {
+  return {
+    name: 'create-404-plugin',
+    closeBundle() {
+      const indexPath = path.resolve(__dirname, 'docs/index.html')
+      const notFoundPath = path.resolve(__dirname, 'docs/404.html')
+
+      if (fs.existsSync(indexPath)) {
         fs.copyFileSync(indexPath, notFoundPath)
         console.log('✅ Copied index.html → 404.html')
+      } else {
+        console.warn('⚠️ index.html not found after build')
       }
     }
   }
-});
+}
